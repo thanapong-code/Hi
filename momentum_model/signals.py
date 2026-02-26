@@ -8,8 +8,11 @@ Signals produced
 3. macd_signal     – MACD histogram normalised to [-1, 1]
 4. volume_signal   – volume trend (price × volume flow)
 5. volatility_adj  – volatility-adjusted (inverse-vol) momentum
-6. ema_trend       – price position relative to EMA 50 & EMA 200 (trend filter)
-7. rs_rating       – IBD-style Relative Strength Rating (12-month weighted return rank)
+6. rs_rating       – IBD-style Relative Strength Rating (12-month weighted return rank)
+
+Hard filter (not a signal weight):
+  EMA-200 filter  – stocks trading below their 200-day EMA are excluded from
+                    the long portfolio entirely (composite set to NaN).
 
 Each signal is cross-sectionally z-scored and then combined into a composite.
 """
@@ -96,13 +99,12 @@ class MomentumSignals:
     """
 
     DEFAULT_WEIGHTS = {
-        "price_momentum": 0.30,
+        "price_momentum": 0.35,
         "rsi_signal":     0.10,
         "macd_signal":    0.10,
         "volume_signal":  0.10,
         "volatility_adj": 0.10,
-        "ema_trend":      0.15,
-        "rs_rating":      0.15,
+        "rs_rating":      0.25,
     }
 
     DEFAULT_WINDOWS = {
@@ -124,6 +126,7 @@ class MomentumSignals:
         macd_signal_period: int = 9,
         ema_fast: int = 50,
         ema_slow: int = 200,
+        ema_filter: bool = True,
     ) -> None:
         self.prices = prices
         self.volume = volume
@@ -136,6 +139,7 @@ class MomentumSignals:
         self.macd_signal_period = macd_signal_period
         self.ema_fast = ema_fast
         self.ema_slow = ema_slow
+        self.ema_filter = ema_filter
 
         self._returns = prices.pct_change()
         self._composite: Optional[pd.DataFrame] = None
@@ -151,7 +155,6 @@ class MomentumSignals:
             "macd_signal":    self._macd_signal(),
             "volume_signal":  self._volume_signal(),
             "volatility_adj": self._volatility_adj_momentum(),
-            "ema_trend":      self._ema_trend_signal(),
             "rs_rating":      self._rs_rating_signal(),
         }
 
@@ -161,6 +164,18 @@ class MomentumSignals:
             w = self.weights.get(name, 0.0)
             sig_z = _winsorise(_cs_zscore(sig))
             composite += w * sig_z.reindex_like(composite).fillna(0)
+
+        # ── EMA-200 hard filter ───────────────────────────────────────────────
+        # Stocks trading below their EMA-200 are excluded from the long
+        # universe by setting their composite score to NaN.  top_n() and
+        # nlargest() naturally skip NaN, so no further changes are needed.
+        if self.ema_filter:
+            ema200 = self.prices.apply(lambda s: _ema(s, self.ema_slow))
+            below_ema200 = self.prices < ema200
+            n_masked = int(below_ema200.sum().sum())
+            composite[below_ema200] = np.nan
+            logger.info("EMA-%d hard filter: %d stock-days masked (below EMA).",
+                        self.ema_slow, n_masked)
 
         self._composite = composite
         self._sub_signals = signals
@@ -303,29 +318,6 @@ class MomentumSignals:
         ret = self.prices.pct_change(self.windows["medium"])
         vol = self._returns.rolling(self.windows["medium"]).std() * np.sqrt(252)
         return ret / vol.replace(0, np.nan)
-
-    def _ema_trend_signal(self) -> pd.DataFrame:
-        """
-        EMA trend signal based on price position relative to EMA 50 and EMA 200.
-
-        Score components (all expressed as fractional distance from the EMA):
-          - 35%: distance above/below EMA 50  (short-term trend)
-          - 45%: distance above/below EMA 200 (long-term trend)
-          - 20%: EMA 50 vs EMA 200 spread     (golden / death cross)
-
-        Positive score → price in uptrend; negative → downtrend.
-        """
-        ema50  = self.prices.apply(lambda s: _ema(s, self.ema_fast))
-        ema200 = self.prices.apply(lambda s: _ema(s, self.ema_slow))
-
-        # Fractional distance of price from each EMA
-        dist_ema50  = (self.prices - ema50)  / ema50.replace(0, np.nan)
-        dist_ema200 = (self.prices - ema200) / ema200.replace(0, np.nan)
-
-        # EMA 50 vs EMA 200 spread (positive = golden cross, negative = death cross)
-        ema_spread  = (ema50 - ema200) / ema200.replace(0, np.nan)
-
-        return 0.35 * dist_ema50 + 0.45 * dist_ema200 + 0.20 * ema_spread
 
     def _rs_rating_signal(self) -> pd.DataFrame:
         """

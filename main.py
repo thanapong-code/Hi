@@ -172,6 +172,7 @@ def run_signal_analysis(prices: pd.DataFrame, volume: pd.DataFrame) -> None:
         macd_signal_period=config.MACD_SIGNAL,
         ema_fast=config.EMA_FAST,
         ema_slow=config.EMA_SLOW,
+        ema_filter=config.EMA_FILTER,
     ).compute()
 
     n_show = min(20, prices.shape[1])
@@ -218,6 +219,7 @@ def run_backtest(
         skip_recent=config.SKIP_RECENT_DAYS,
         signal_weights=config.SIGNAL_WEIGHTS,
         momentum_windows=config.MOMENTUM_WINDOWS,
+        ema_filter=config.EMA_FILTER,
     )
 
     result = engine.run()

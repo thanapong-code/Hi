@@ -127,6 +127,7 @@ class BacktestEngine:
         min_history_days: int = 252,
         signal_weights: Optional[Dict[str, float]] = None,
         momentum_windows: Optional[Dict[str, int]] = None,
+        ema_filter: bool = True,
     ) -> None:
         self.prices = prices
         self.volume = volume
@@ -147,6 +148,7 @@ class BacktestEngine:
         self.min_history = min_history_days
         self.signal_weights = signal_weights
         self.momentum_windows = momentum_windows
+        self.ema_filter = ema_filter
 
     # ── Main loop ─────────────────────────────────────────────────────────────
 
@@ -310,6 +312,7 @@ class BacktestEngine:
             signal_weights=self.signal_weights,
             momentum_windows=self.momentum_windows,
             skip_recent=self.skip_recent,
+            ema_filter=self.ema_filter,
         ).compute()
 
         selected = sig.top_n(self.top_n, date=date)

@@ -48,14 +48,16 @@ EARNINGS_SURPRISE_WEIGHT = 0.2   # weight for earnings momentum
 
 # ─── Signal Weighting ────────────────────────────────────────────────────────
 SIGNAL_WEIGHTS = {
-    "price_momentum": 0.30,
+    "price_momentum": 0.35,
     "rsi_signal":     0.10,
     "macd_signal":    0.10,
     "volume_signal":  0.10,
     "volatility_adj": 0.10,
-    "ema_trend":      0.15,   # EMA 50 / EMA 200 trend filter
-    "rs_rating":      0.15,   # IBD-style Relative Strength Rating
+    "rs_rating":      0.25,   # IBD-style Relative Strength Rating
 }
+# EMA-200 hard filter: stocks below their 200-day EMA are excluded from
+# the long universe entirely (not a weighted signal).
+EMA_FILTER = True
 
 # ─── Portfolio Construction ───────────────────────────────────────────────────
 TOP_N_STOCKS = 20                # number of stocks to hold long
