@@ -300,4 +300,4 @@ class PerformanceMetrics:
         })
         tbl.index = tbl.index.year
         tbl["Excess"] = tbl["Strategy"] - tbl["Benchmark"]
-        return tbl.applymap(lambda x: f"{x:.2%}")
+        return tbl.map(lambda x: f"{x:.2%}")

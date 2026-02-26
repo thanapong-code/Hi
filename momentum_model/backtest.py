@@ -170,10 +170,14 @@ class BacktestEngine:
         entry_prices: Dict[str, float] = {}
         hwm_prices: Dict[str, float] = {}
 
-        # Initialise benchmark
-        bench_start = self.benchmark.dropna().iloc[0]
+        # Align benchmark to price dates (forward-fill any gaps)
+        bench_aligned = self.benchmark.reindex(dates, method="ffill").bfill()
+        bench_start = bench_aligned.iloc[0]
 
-        halted = False  # drawdown circuit-breaker
+        halted = False           # drawdown circuit-breaker
+        halt_day_count = 0      # trading days spent in cash after halt
+
+        prev_price_row: Optional[pd.Series] = None
 
         for i, date in enumerate(dates):
             if date not in self.prices.index:
@@ -182,13 +186,17 @@ class BacktestEngine:
             price_row = self.prices.loc[date]
 
             # ── Daily mark-to-market ──────────────────────────────────────────
-            if len(current_weights) > 0:
-                port_ret = (current_weights * price_row.reindex(current_weights.index)
-                            .pct_change().fillna(0)).sum()
+            if len(current_weights) > 0 and prev_price_row is not None:
+                cur  = price_row.reindex(current_weights.index)
+                prev = prev_price_row.reindex(current_weights.index)
+                daily_ret = (cur - prev) / prev.replace(0, np.nan)
+                port_ret = (current_weights * daily_ret.fillna(0)).sum()
                 current_nav *= (1 + port_ret)
 
+            prev_price_row = price_row
+
             nav[date] = current_nav
-            bench_val = (self.benchmark.loc[date] / bench_start) * self.capital
+            bench_val = (bench_aligned.loc[date] / bench_start) * self.capital
             bench_nav[date] = bench_val
 
             # Update trailing stop high-water marks
@@ -232,10 +240,14 @@ class BacktestEngine:
                 halted = True
                 current_weights = pd.Series(dtype=float)
 
-            # Reset halt if we recover to within half the limit
-            if halted and drawdown > -self.max_dd / 2:
-                logger.info("Drawdown recovered – resuming trading on %s.", date)
-                halted = False
+            # Resume after a 63-day (≈3 month) cooldown period in cash
+            if halted:
+                halt_day_count += 1
+                if halt_day_count >= 63:
+                    logger.info("Cooldown complete – resuming trading on %s.", date)
+                    halted = False
+                    halt_day_count = 0
+                    peak_nav = current_nav  # reset peak after cooldown
 
             # ── Rebalance ─────────────────────────────────────────────────────
             if date in rebalance_dates and not halted:
