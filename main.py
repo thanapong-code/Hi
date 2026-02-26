@@ -98,7 +98,7 @@ def load_live_data(args: argparse.Namespace):
 def load_simulated_data(args: argparse.Namespace):
     """Generate synthetic stock + benchmark data (GBM with market factor)."""
     n = args.n_stocks
-    tickers = [f"STK{i:03d}" for i in range(1, n + 1)]
+    tickers = config.SP500_TICKERS[:n]
 
     logger.info("Generating synthetic data for %d stocks (%s → %s)…",
                 n, args.start, args.end or "today")
