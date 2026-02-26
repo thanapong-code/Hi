@@ -40,17 +40,21 @@ MACD_SLOW = 26
 MACD_SIGNAL = 9
 BOLLINGER_PERIOD = 20
 BOLLINGER_STD = 2
+EMA_FAST = 50             # EMA 50  – short-term trend filter
+EMA_SLOW = 200            # EMA 200 – long-term trend filter
 
 VOLUME_MOMENTUM_WINDOW = 20      # days for volume trend signal
 EARNINGS_SURPRISE_WEIGHT = 0.2   # weight for earnings momentum
 
 # ─── Signal Weighting ────────────────────────────────────────────────────────
 SIGNAL_WEIGHTS = {
-    "price_momentum": 0.40,
-    "rsi_signal":     0.15,
-    "macd_signal":    0.15,
-    "volume_signal":  0.15,
-    "volatility_adj": 0.15,
+    "price_momentum": 0.30,
+    "rsi_signal":     0.10,
+    "macd_signal":    0.10,
+    "volume_signal":  0.10,
+    "volatility_adj": 0.10,
+    "ema_trend":      0.15,   # EMA 50 / EMA 200 trend filter
+    "rs_rating":      0.15,   # IBD-style Relative Strength Rating
 }
 
 # ─── Portfolio Construction ───────────────────────────────────────────────────

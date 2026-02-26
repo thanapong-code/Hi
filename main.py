@@ -170,6 +170,8 @@ def run_signal_analysis(prices: pd.DataFrame, volume: pd.DataFrame) -> None:
         macd_fast=config.MACD_FAST,
         macd_slow=config.MACD_SLOW,
         macd_signal_period=config.MACD_SIGNAL,
+        ema_fast=config.EMA_FAST,
+        ema_slow=config.EMA_SLOW,
     ).compute()
 
     n_show = min(20, prices.shape[1])

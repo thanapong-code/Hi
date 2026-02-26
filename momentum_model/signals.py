@@ -8,6 +8,8 @@ Signals produced
 3. macd_signal     – MACD histogram normalised to [-1, 1]
 4. volume_signal   – volume trend (price × volume flow)
 5. volatility_adj  – volatility-adjusted (inverse-vol) momentum
+6. ema_trend       – price position relative to EMA 50 & EMA 200 (trend filter)
+7. rs_rating       – IBD-style Relative Strength Rating (12-month weighted return rank)
 
 Each signal is cross-sectionally z-scored and then combined into a composite.
 """
@@ -94,11 +96,13 @@ class MomentumSignals:
     """
 
     DEFAULT_WEIGHTS = {
-        "price_momentum": 0.40,
-        "rsi_signal":     0.15,
-        "macd_signal":    0.15,
-        "volume_signal":  0.15,
-        "volatility_adj": 0.15,
+        "price_momentum": 0.30,
+        "rsi_signal":     0.10,
+        "macd_signal":    0.10,
+        "volume_signal":  0.10,
+        "volatility_adj": 0.10,
+        "ema_trend":      0.15,
+        "rs_rating":      0.15,
     }
 
     DEFAULT_WINDOWS = {
@@ -118,6 +122,8 @@ class MomentumSignals:
         macd_fast: int = 12,
         macd_slow: int = 26,
         macd_signal_period: int = 9,
+        ema_fast: int = 50,
+        ema_slow: int = 200,
     ) -> None:
         self.prices = prices
         self.volume = volume
@@ -128,6 +134,8 @@ class MomentumSignals:
         self.macd_fast = macd_fast
         self.macd_slow = macd_slow
         self.macd_signal_period = macd_signal_period
+        self.ema_fast = ema_fast
+        self.ema_slow = ema_slow
 
         self._returns = prices.pct_change()
         self._composite: Optional[pd.DataFrame] = None
@@ -143,6 +151,8 @@ class MomentumSignals:
             "macd_signal":    self._macd_signal(),
             "volume_signal":  self._volume_signal(),
             "volatility_adj": self._volatility_adj_momentum(),
+            "ema_trend":      self._ema_trend_signal(),
+            "rs_rating":      self._rs_rating_signal(),
         }
 
         composite = pd.DataFrame(0.0, index=self.prices.index,
@@ -293,6 +303,55 @@ class MomentumSignals:
         ret = self.prices.pct_change(self.windows["medium"])
         vol = self._returns.rolling(self.windows["medium"]).std() * np.sqrt(252)
         return ret / vol.replace(0, np.nan)
+
+    def _ema_trend_signal(self) -> pd.DataFrame:
+        """
+        EMA trend signal based on price position relative to EMA 50 and EMA 200.
+
+        Score components (all expressed as fractional distance from the EMA):
+          - 35%: distance above/below EMA 50  (short-term trend)
+          - 45%: distance above/below EMA 200 (long-term trend)
+          - 20%: EMA 50 vs EMA 200 spread     (golden / death cross)
+
+        Positive score → price in uptrend; negative → downtrend.
+        """
+        ema50  = self.prices.apply(lambda s: _ema(s, self.ema_fast))
+        ema200 = self.prices.apply(lambda s: _ema(s, self.ema_slow))
+
+        # Fractional distance of price from each EMA
+        dist_ema50  = (self.prices - ema50)  / ema50.replace(0, np.nan)
+        dist_ema200 = (self.prices - ema200) / ema200.replace(0, np.nan)
+
+        # EMA 50 vs EMA 200 spread (positive = golden cross, negative = death cross)
+        ema_spread  = (ema50 - ema200) / ema200.replace(0, np.nan)
+
+        return 0.35 * dist_ema50 + 0.45 * dist_ema200 + 0.20 * ema_spread
+
+    def _rs_rating_signal(self) -> pd.DataFrame:
+        """
+        IBD-style Relative Strength (RS) Rating.
+
+        Weights price performance over four lookback periods to emphasise
+        recent momentum (same formula used by Investor's Business Daily):
+          40% × 3-month return  (63 trading days)
+          20% × 6-month return  (126 trading days)
+          20% × 9-month return  (189 trading days)
+          20% × 12-month return (252 trading days)
+
+        The blended score is then ranked cross-sectionally so that the
+        best-performing stock scores near 99 and the worst near 1.
+        Cross-sectional z-scoring in compute() normalises further.
+        """
+        r3  = self.prices.pct_change(63)    # ~3 months
+        r6  = self.prices.pct_change(126)   # ~6 months
+        r9  = self.prices.pct_change(189)   # ~9 months
+        r12 = self.prices.pct_change(252)   # ~12 months
+
+        rs_score = 0.40 * r3 + 0.20 * r6 + 0.20 * r9 + 0.20 * r12
+
+        # Percentile rank cross-sectionally (1 = weakest, 99 = strongest)
+        rs_rank = rs_score.rank(axis=1, pct=True) * 98 + 1
+        return rs_rank
 
     # ── Internals ─────────────────────────────────────────────────────────────
 
