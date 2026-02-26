@@ -2,6 +2,18 @@
 
 A quantitative momentum trading system for US equities with multi-factor signals, risk-parity portfolio construction, and walk-forward backtesting.
 
+## Performance Charts
+
+### Performance Dashboard
+*(Cumulative returns vs benchmark · Drawdown · Rolling Sharpe · Monthly returns heatmap)*
+
+![Performance Dashboard](charts/performance.png)
+
+### Portfolio Holdings Over Time
+*(Top-10 holdings by average weight — weekly rebalance, equal-weight, top-30)*
+
+![Portfolio Holdings](charts/weights.png)
+
 ## Features
 
 | Component | Description |
