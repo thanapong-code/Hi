@@ -15,6 +15,7 @@ from .backtest import BacktestEngine
 from .metrics import PerformanceMetrics
 from .risk import StopLossManager, PortfolioRiskMonitor
 from .simulate import generate_market_data, generate_benchmark
+from .github_data import fetch_github_sp500
 
 __version__ = "1.0.0"
 __all__ = [
@@ -27,4 +28,5 @@ __all__ = [
     "PortfolioRiskMonitor",
     "generate_market_data",
     "generate_benchmark",
+    "fetch_github_sp500",
 ]

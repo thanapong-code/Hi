@@ -34,6 +34,7 @@ from momentum_model import (
     PerformanceMetrics,
     generate_market_data,
     generate_benchmark,
+    fetch_github_sp500,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -62,6 +63,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--signal-only", action="store_true", help="Only compute signals (no backtest)")
     p.add_argument("--simulate",    action="store_true",
                    help="Use synthetic data (GBM) instead of Yahoo Finance (useful offline)")
+    p.add_argument("--real",        action="store_true",
+                   help="Use real S&P 500 data from GitHub (2013-2018, no API key needed)")
     p.add_argument("--n-stocks",    type=int, default=50,
                    help="Number of synthetic stocks to simulate (default: 50)")
     return p.parse_args()
@@ -110,6 +113,16 @@ def load_simulated_data(args: argparse.Namespace):
         seed=42,
     )
     benchmark = generate_benchmark(prices)
+    return prices, volume, benchmark
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def load_real_data(args: argparse.Namespace):
+    """Load real S&P 500 data from GitHub (2013-02-08 → 2018-02-07)."""
+    prices, volume, benchmark = fetch_github_sp500(
+        tickers=config.SP500_TICKERS,
+        min_history_days=config.MOMENTUM_WINDOWS["long"] + config.SKIP_RECENT_DAYS + 30,
+    )
     return prices, volume, benchmark
 
 
@@ -232,15 +245,17 @@ def run_backtest(
 def main() -> None:
     args = parse_args()
 
+    mode = "SIMULATE" if args.simulate else ("REAL (GitHub SP500)" if args.real else "LIVE (Yahoo Finance)")
     logger.info("=== US Stocks Momentum Model ===")
     logger.info("Mode: %s | %s → %s | Rebalance: %s | Top-N: %d | Method: %s",
-                "SIMULATE" if args.simulate else "LIVE",
-                args.start, args.end or "today",
+                mode, args.start, args.end or "today",
                 args.rebalance, args.top_n, args.method)
 
     # ── Step 1: Load data ─────────────────────────────────────────────────────
     if args.simulate:
         prices, volume, benchmark = load_simulated_data(args)
+    elif args.real:
+        prices, volume, benchmark = load_real_data(args)
     else:
         prices, volume, benchmark = load_live_data(args)
 
