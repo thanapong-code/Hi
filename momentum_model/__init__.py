@@ -17,6 +17,7 @@ from .risk import StopLossManager, PortfolioRiskMonitor
 from .simulate import generate_market_data, generate_benchmark
 from .github_data import fetch_github_sp500
 from .stooq_data import fetch_stooq_data
+from .yfinance_data import fetch_yfinance_data
 
 __version__ = "1.0.0"
 __all__ = [
@@ -31,4 +32,5 @@ __all__ = [
     "generate_benchmark",
     "fetch_github_sp500",
     "fetch_stooq_data",
+    "fetch_yfinance_data",
 ]

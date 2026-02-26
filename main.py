@@ -36,6 +36,7 @@ from momentum_model import (
     generate_benchmark,
     fetch_github_sp500,
     fetch_stooq_data,
+    fetch_yfinance_data,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -68,6 +69,8 @@ def parse_args() -> argparse.Namespace:
                    help="Use real S&P 500 data from GitHub (2013-2018, no API key needed)")
     p.add_argument("--stooq",       action="store_true",
                    help="Use real data from Stooq.com (free, no API key, supports 2024→today)")
+    p.add_argument("--yfinance",    action="store_true",
+                   help="Use real data from Yahoo Finance via yfinance (free, no API key, supports 2024→today)")
     p.add_argument("--n-stocks",    type=int, default=50,
                    help="Number of synthetic stocks to simulate (default: 50)")
     return p.parse_args()
@@ -133,6 +136,18 @@ def load_real_data(args: argparse.Namespace):
 def load_stooq_data(args: argparse.Namespace):
     """Fetch real data from Stooq.com for any date range (2024→today supported)."""
     prices, volume, benchmark = fetch_stooq_data(
+        tickers=config.SP500_TICKERS,
+        start_date=args.start,
+        end_date=args.end,
+        min_history_days=config.MOMENTUM_WINDOWS["long"] + config.SKIP_RECENT_DAYS + 30,
+    )
+    return prices, volume, benchmark
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def load_yfinance_data(args: argparse.Namespace):
+    """Fetch real data from Yahoo Finance for any date range (2024→today supported)."""
+    prices, volume, benchmark = fetch_yfinance_data(
         tickers=config.SP500_TICKERS,
         start_date=args.start,
         end_date=args.end,
@@ -266,6 +281,8 @@ def main() -> None:
         mode = "REAL (GitHub SP500)"
     elif args.stooq:
         mode = "REAL (Stooq.com)"
+    elif args.yfinance:
+        mode = "REAL (Yahoo Finance/yfinance)"
     else:
         mode = "LIVE (Yahoo Finance)"
     logger.info("=== US Stocks Momentum Model ===")
@@ -280,6 +297,8 @@ def main() -> None:
         prices, volume, benchmark = load_real_data(args)
     elif args.stooq:
         prices, volume, benchmark = load_stooq_data(args)
+    elif args.yfinance:
+        prices, volume, benchmark = load_yfinance_data(args)
     else:
         prices, volume, benchmark = load_live_data(args)
 
