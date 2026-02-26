@@ -35,6 +35,7 @@ from momentum_model import (
     generate_market_data,
     generate_benchmark,
     fetch_github_sp500,
+    fetch_stooq_data,
 )
 
 # ── Logging ───────────────────────────────────────────────────────────────────
@@ -65,6 +66,8 @@ def parse_args() -> argparse.Namespace:
                    help="Use synthetic data (GBM) instead of Yahoo Finance (useful offline)")
     p.add_argument("--real",        action="store_true",
                    help="Use real S&P 500 data from GitHub (2013-2018, no API key needed)")
+    p.add_argument("--stooq",       action="store_true",
+                   help="Use real data from Stooq.com (free, no API key, supports 2024→today)")
     p.add_argument("--n-stocks",    type=int, default=50,
                    help="Number of synthetic stocks to simulate (default: 50)")
     return p.parse_args()
@@ -121,6 +124,18 @@ def load_real_data(args: argparse.Namespace):
     """Load real S&P 500 data from GitHub (2013-02-08 → 2018-02-07)."""
     prices, volume, benchmark = fetch_github_sp500(
         tickers=config.SP500_TICKERS,
+        min_history_days=config.MOMENTUM_WINDOWS["long"] + config.SKIP_RECENT_DAYS + 30,
+    )
+    return prices, volume, benchmark
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+def load_stooq_data(args: argparse.Namespace):
+    """Fetch real data from Stooq.com for any date range (2024→today supported)."""
+    prices, volume, benchmark = fetch_stooq_data(
+        tickers=config.SP500_TICKERS,
+        start_date=args.start,
+        end_date=args.end,
         min_history_days=config.MOMENTUM_WINDOWS["long"] + config.SKIP_RECENT_DAYS + 30,
     )
     return prices, volume, benchmark
@@ -245,7 +260,14 @@ def run_backtest(
 def main() -> None:
     args = parse_args()
 
-    mode = "SIMULATE" if args.simulate else ("REAL (GitHub SP500)" if args.real else "LIVE (Yahoo Finance)")
+    if args.simulate:
+        mode = "SIMULATE"
+    elif args.real:
+        mode = "REAL (GitHub SP500)"
+    elif args.stooq:
+        mode = "REAL (Stooq.com)"
+    else:
+        mode = "LIVE (Yahoo Finance)"
     logger.info("=== US Stocks Momentum Model ===")
     logger.info("Mode: %s | %s → %s | Rebalance: %s | Top-N: %d | Method: %s",
                 mode, args.start, args.end or "today",
@@ -256,6 +278,8 @@ def main() -> None:
         prices, volume, benchmark = load_simulated_data(args)
     elif args.real:
         prices, volume, benchmark = load_real_data(args)
+    elif args.stooq:
+        prices, volume, benchmark = load_stooq_data(args)
     else:
         prices, volume, benchmark = load_live_data(args)
 
